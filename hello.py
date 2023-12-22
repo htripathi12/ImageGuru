@@ -1,104 +1,70 @@
 # example of loading the cifar10 dataset
-import numpy as np
-from matplotlib import pyplot as plt
-import seaborn as sns
-from keras.datasets import cifar10
-import pandas as pd
 import tensorflow as tf
+from keras import layers, models
+from keras.datasets import cifar10
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import classification_report, confusion_matrix
 import seaborn as sns
-from sklearn.metrics import classification_report
+import matplotlib.pyplot as plt
 
-
-# LOAD DATASET AND TEST
-
-(training_images, training_labels), (testing_images, testing_labels) = cifar10.load_data()
-# # plt.imshow(training_images[2])
-# # plt.show()
-
-
-# print(training_images.shape)
-# print(training_labels.shape, "\n")
-
-# print(testing_images.shape)
-# print(testing_labels.shape)
-
-# fig = plt.figure(figsize=(12, 8))
-# columns = 5
-# rows = 3
-
-# for i in range(1, columns*rows + 1):
-#       img = training_images[i]
-#       fig.add_subplot(rows, columns, i) # create subplot (row index, col index, which number of plot)
-#       plt.title("Label:" + str(training_labels[i])) # plot the image, along with its label
-#       plt.imshow(img, cmap=plt.cm.binary)
-# plt.show()
-
-# X_train, X_valid, y_train, y_valid = train_test_split(training_images, training_labels, random_state = 0, test_size = 0.2)
-
-# MODEL BELOW
-
-# LOAD DATASET AND TEST
-(training_images, training_labels), (testing_images, testing_labels) = cifar10.load_data()
+# Load CIFAR-10 dataset
+(train_images, train_labels), (test_images, test_labels) = cifar10.load_data()
 
 # Normalize pixel values to be between 0 and 1
-training_images, testing_images = training_images / 255.0, testing_images / 255.0
+train_images, test_images = train_images / 255.0, test_images / 255.0
 
-# Split the data into training and validation sets
-X_train, X_valid, y_train, y_valid = train_test_split(training_images, training_labels, random_state=0, test_size=0.2)
+# Split the training data into training and validation sets
+X_train, X_valid, y_train, y_valid = train_test_split(train_images, train_labels, random_state=42, test_size=0.2)
 
-# MODEL BELOW
-model = tf.keras.models.Sequential([
-    tf.keras.layers.Flatten(),
-    tf.keras.layers.Dense(100, activation='relu'),  # hidden layer
-    tf.keras.layers.Dense(80, activation='relu'),  # hidden layer
-    tf.keras.layers.Dense(70, activation='relu'),
-    tf.keras.layers.Dense(70, activation='relu'),  # hidden layer
-    tf.keras.layers.Dense(70, activation='relu'),
-    tf.keras.layers.Dense(70, activation='relu'),
-    tf.keras.layers.Dense(70, activation='relu'),  # hidden layer
-    tf.keras.layers.Dense(10, activation='softmax')  # output layer
-])
+# Build the CNN model
+model = models.Sequential()
 
-optimizer = tf.keras.optimizers.Nadam(
-    learning_rate=0.001,
-    beta_1=0.9,
-    beta_2=0.999,
-    epsilon=1e-05,
-    name='Nadam',
-)
+model.add(layers.Conv2D(32, (3, 3), activation='relu', input_shape=(32, 32, 3)))
+model.add(layers.MaxPooling2D((2, 2)))
 
-model.compile(
-    optimizer=optimizer,
-    loss='sparse_categorical_crossentropy',
-    metrics=['accuracy']
-)
+model.add(layers.Conv2D(64, (3, 3), activation='relu'))
+model.add(layers.MaxPooling2D((2, 2)))
 
-# Fit the model
-history = model.fit(X_train, y_train, epochs=30, validation_data=(X_valid, y_valid), verbose=1)
+model.add(layers.Conv2D(64, (3, 3), activation='relu'))
 
-# Plotting accuracy
+model.add(layers.Flatten())
+model.add(layers.Dense(64, activation='relu'))
+model.add(layers.Dense(10, activation='softmax'))
+
+# Compile the model
+model.compile(optimizer='adam',
+              loss='sparse_categorical_crossentropy',
+              metrics=['accuracy'])
+
+# Train the model
+history = model.fit(X_train, y_train, epochs=15, validation_data=(X_valid, y_valid))
+
+# Plot training history
 plt.plot(history.history['accuracy'], label='accuracy')
 plt.plot(history.history['val_accuracy'], label='val_accuracy')
 plt.xlabel('Epoch')
 plt.ylabel('Accuracy')
 plt.ylim([0, 1])
-plt.xlim([0, 30])
 plt.legend(loc='lower right')
-plt.title('Training and Validation Accuracy Over Epochs')
 plt.show()
 
-# Confusion Matrix
-predictions = model.predict(testing_images)
-predictions_for_cm = predictions.argmax(1)
-class_names = ["airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck"]
-cm = confusion_matrix(testing_labels, predictions_for_cm)
-plt.figure(figsize=(8, 8))
-sns.heatmap(cm, annot=True, xticklabels=class_names, yticklabels=class_names)
+# Evaluate the model on the test set
+test_loss, test_acc = model.evaluate(test_images, test_labels, verbose=2)
+print(f"\nTest accuracy: {test_acc}")
 
-# Classification Report
-class_names = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
-predictions = model.predict(testing_images)
-predictions = np.argmax(predictions, axis=1)
-print(classification_report(testing_labels, predictions, target_names=class_names))
+# Make predictions and generate a classification report and confusion matrix
+predictions = model.predict(test_images)
+predictions_classes = [tf.argmax(prediction).numpy() for prediction in predictions]
+
+class_names = ["airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck"]
+
+print("\nClassification Report:")
+print(classification_report(test_labels, predictions_classes, target_names=class_names))
+
+# Plot confusion matrix
+cm = confusion_matrix(test_labels, predictions_classes)
+plt.figure(figsize=(8, 8))
+sns.heatmap(cm, annot=True, fmt='d', xticklabels=class_names, yticklabels=class_names)
+plt.xlabel('Predicted')
+plt.ylabel('True')
+plt.show()
